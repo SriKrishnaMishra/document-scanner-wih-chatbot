@@ -102,3 +102,4 @@ This is a client-side implementation that simulates the document processing and 
 
 The current implementation stores document data in the browser's localStorage, which has limitations on storage size and is not secure for sensitive documents.
 # document-scanner-wih-chatbot
+# document-scanner-wih-chatbot
