@@ -23,6 +23,8 @@ const tabPanes = document.querySelectorAll('.tab-pane');
 const vizTabBtns = document.querySelectorAll('.viz-tab-btn');
 const vizPanes = document.querySelectorAll('.viz-pane');
 const questionBtns = document.querySelectorAll('.question-btn');
+const searchInput = document.getElementById('search-input');
+const searchBtn = document.getElementById('search-btn');
 
 // State
 let state = {
@@ -31,26 +33,47 @@ let state = {
     chatHistory: []
 };
 
+// API Base URL
+const API_BASE_URL = window.location.origin;
+
 // Initialize
-function init() {
+async function init() {
     // Load state from localStorage if available
     const savedState = localStorage.getItem('docAIState');
     if (savedState) {
         state = JSON.parse(savedState);
-        renderDocumentList();
-        
-        if (state.currentDocument) {
-            loadDocument(state.currentDocument);
-        }
     }
     
-    // Event listeners
+    // Load documents from server
+    await loadDocuments();
+    
+    // Set up event listeners
+    setupEventListeners();
+    
+    // Show welcome screen if no documents
+    if (Object.keys(state.documents).length === 0) {
+        welcomeScreen.style.display = 'flex';
+        documentView.style.display = 'none';
+    } else if (state.currentDocument) {
+        await loadDocument(state.currentDocument);
+    }
+}
+
+// Set up event listeners
+function setupEventListeners() {
     fileUpload.addEventListener('change', handleFileUpload);
     processBtn.addEventListener('click', processDocument);
     sendBtn.addEventListener('click', sendMessage);
+    searchBtn.addEventListener('click', handleSearch);
+    
     chatInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
+    
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSearch();
+    });
+    
     clearDataBtn.addEventListener('click', clearAllData);
     
     // Tab navigation
@@ -79,6 +102,34 @@ function init() {
     });
 }
 
+// Load documents from server
+async function loadDocuments() {
+    try {
+        showLoading('Loading documents...');
+        const response = await fetch(`${API_BASE_URL}/api/documents`);
+        if (!response.ok) throw new Error('Failed to load documents');
+        
+        const docs = await response.json();
+        state.documents = {};
+        
+        // Fetch full document for each doc
+        for (const doc of docs) {
+            const docResponse = await fetch(`${API_BASE_URL}/api/documents/${doc.id}`);
+            if (docResponse.ok) {
+                const fullDoc = await docResponse.json();
+                state.documents[doc.id] = fullDoc;
+            }
+        }
+        
+        renderDocumentList();
+        hideLoading();
+    } catch (error) {
+        console.error('Error loading documents:', error);
+        hideLoading();
+        alert('Failed to load documents. Please refresh the page.');
+    }
+}
+
 // File Upload Handler
 function handleFileUpload(e) {
     const file = e.target.files[0];
@@ -92,47 +143,58 @@ function handleFileUpload(e) {
 }
 
 // Process Document
-function processDocument() {
+async function processDocument() {
     const file = fileUpload.files[0];
     if (!file) return;
     
     showLoading('Processing document...');
     
-    // Simulate document processing
-    setTimeout(() => {
-        const docId = 'doc_' + Date.now();
-        const docName = file.name;
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
         
-        // Create a FileReader to read the file content
-        const reader = new FileReader();
+        const response = await fetch(`${API_BASE_URL}/api/upload`, {
+            method: 'POST',
+            body: formData
+        });
         
-        reader.onload = function(e) {
-            const text = e.target.result;
-            
-            // Process the document (in a real app, this would be done by the backend)
-            const processedDoc = processDocumentText(text, docName);
-            
-            // Add to state
-            state.documents[docId] = processedDoc;
-            state.currentDocument = docId;
-            
-            // Save state
-            saveState();
-            
-            // Update UI
-            renderDocumentList();
-            loadDocument(docId);
-            
-            // Reset file upload
-            fileUpload.value = '';
-            fileInfo.textContent = 'No file selected';
-            processBtn.disabled = true;
-            
-            hideLoading();
-        };
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to process document');
+        }
         
-        reader.readAsText(file);
-    }, 2000);
+        const docData = await response.json();
+        
+        // Get full document
+        const docResponse = await fetch(`${API_BASE_URL}/api/documents/${docData.id}`);
+        if (!docResponse.ok) throw new Error('Failed to load document details');
+        
+        const fullDoc = await docResponse.json();
+        state.documents[docData.id] = fullDoc;
+        state.currentDocument = docData.id;
+        
+        // Save state
+        saveState();
+        
+        // Update UI
+        renderDocumentList();
+        await loadDocument(docData.id);
+        
+        // Reset file upload
+        fileUpload.value = '';
+        fileInfo.textContent = 'No file selected';
+        processBtn.disabled = true;
+        
+        // Show document view
+        welcomeScreen.style.display = 'none';
+        documentView.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error processing document:', error);
+        alert(`Error: ${error.message}`);
+    } finally {
+        hideLoading();
+    }
 }
 
 // Process Document Text (simulated)
@@ -196,317 +258,56 @@ function generateSummary(text) {
     // Here we'll just return the first few sentences
     const sentences = text.split(/[.!?]+/).filter(sentence => sentence.trim().length > 0);
     const summaryLength = Math.min(3, sentences.length);
-    
-    return sentences.slice(0, summaryLength).join('. ') + '.';
-}
-
-// Load Document
-function loadDocument(docId) {
-    const doc = state.documents[docId];
-    if (!doc) return;
-    
-    // Update UI
-    welcomeScreen.style.display = 'none';
-    documentView.style.display = 'block';
-    documentTitle.textContent = doc.name;
-    
-    // Update stats
-    totalWords.textContent = doc.words;
-    totalSentences.textContent = doc.sentences;
-    identifiedThemes.textContent = doc.themes.length;
-    
-    // Update themes list
-    themesList.innerHTML = '';
-    doc.themes.forEach((theme, index) => {
-        const themeEl = document.createElement('div');
-        themeEl.className = 'theme-item';
-        themeEl.innerHTML = `
-            <h4>Theme ${index + 1}: ${theme.keywords.join(', ')}</h4>
-            <p><strong>Representative Content:</strong> ${theme.representativeSentence}</p>
-        `;
-        themesList.appendChild(themeEl);
-    });
-    
-    // Update summary
-    summaryContent.textContent = doc.summary;
-    
-    // Update document content
-    documentContent.textContent = doc.text;
-    
-    // Reset chat
-    chatMessages.innerHTML = `
-        <div class="message system">
-            <div class="message-content">
-                <p>Hello! I'm your document assistant. Ask me anything about "${doc.name}".</p>
-            </div>
-        </div>
-    `;
-    
-    // Create visualizations
-    createWordFrequencyChart(doc);
-    createThemeNetworkChart(doc);
-    
-    // Set current document
-    state.currentDocument = docId;
-    state.chatHistory = [];
-    saveState();
-    
-    // Highlight the document in the list
-    const docItems = documentList.querySelectorAll('li');
-    docItems.forEach(item => {
-        if (item.getAttribute('data-id') === docId) {
-            item.classList.add('active');
-        } else {
-            item.classList.remove('active');
-        }
-    });
-}
-
-// Send Message
-function sendMessage() {
-    const message = chatInput.value.trim();
-    if (!message) return;
-    
-    addMessageToChat('user', message);
-    chatInput.value = '';
-    
-    // Simulate response
-    simulateResponse(message);
-}
-
-// Add Message to Chat
-function addMessageToChat(role, content) {
-    const messageEl = document.createElement('div');
-    messageEl.className = `message ${role}`;
-    messageEl.innerHTML = `
-        <div class="message-content">
-            <p>${content}</p>
-        </div>
-    `;
-    chatMessages.appendChild(messageEl);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    
-    // Add to chat history
-    state.chatHistory.push({ role, content });
-    saveState();
-}
-
-// Simulate Response
-function simulateResponse(question) {
-    const doc = state.documents[state.currentDocument];
-    if (!doc) return;
-    
-    // Show typing indicator
-    const typingEl = document.createElement('div');
-    typingEl.className = 'message assistant typing';
-    typingEl.innerHTML = `
-        <div class="message-content">
-            <p>Thinking...</p>
-        </div>
-    `;
-    chatMessages.appendChild(typingEl);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    
-    // Simulate thinking time
-    setTimeout(() => {
-        // Remove typing indicator
-        chatMessages.removeChild(typingEl);
+        chatMessages.innerHTML = '';
+        state.chatHistory = [];
         
-        // Generate response based on question
-        let response = '';
+        // Add welcome message
+        addMessageToChat('assistant', `I've loaded "${doc.filename || 'your document'}". What would you like to know about it?`);
         
-        if (question.toLowerCase().includes('summary') || question.toLowerCase().includes('summarize')) {
-            response = `Here's a summary of the document: ${doc.summary}`;
-        } else if (question.toLowerCase().includes('theme') || question.toLowerCase().includes('topic')) {
-            response = `The main themes in this document are: ${doc.themes.map((theme, i) => `Theme ${i+1}: ${theme.keywords.join(', ')}`).join('; ')}`;
-        } else if (question.toLowerCase().includes('important') || question.toLowerCase().includes('key point')) {
-            const randomTheme = doc.themes[Math.floor(Math.random() * doc.themes.length)];
-            response = `One of the key points in the document is: ${randomTheme.representativeSentence}`;
-        } else {
-            // Default response
-            response = `Based on the document, I found the following information that might be relevant to your question: ${doc.themes[0].representativeSentence}`;
-        }
-        
-        // Add response to chat
-        addMessageToChat('assistant', response);
-    }, 1500);
-}
-
-// Create Word Frequency Chart
-function createWordFrequencyChart(doc) {
-    const canvas = document.getElementById('word-freq-chart');
-    
-    // Clear previous chart if it exists
-    if (window.wordFreqChart) {
-        window.wordFreqChart.destroy();
+    } catch (error) {
+        console.error('Error loading document:', error);
+        alert(`Failed to load document: ${error.message}`);
+    } finally {
+        hideLoading();
     }
-    
-    // Get word frequencies
-    const words = doc.text.toLowerCase().split(/\s+/).filter(word => word.length > 3);
-    const wordFreq = {};
-    
-    words.forEach(word => {
-        wordFreq[word] = (wordFreq[word] || 0) + 1;
-    });
-    
-    // Sort by frequency
-    const sortedWords = Object.entries(wordFreq)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
-    
-    // Create chart
-    window.wordFreqChart = new Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels: sortedWords.map(item => item[0]),
-            datasets: [{
-                label: 'Word Frequency',
-                data: sortedWords.map(item => item[1]),
-                backgroundColor: '#4a6bff',
-                borderColor: '#3a5bef',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-}
-
-// Create Theme Network Chart
-function createThemeNetworkChart(doc) {
-    const canvas = document.getElementById('theme-network-chart');
-    
-    // Clear previous chart if it exists
-    if (window.themeNetworkChart) {
-        window.themeNetworkChart.destroy();
-    }
-    
-    // Create a simple network visualization
-    window.themeNetworkChart = new Chart(canvas, {
-        type: 'bubble',
-        data: {
-            datasets: doc.themes.map((theme, i) => ({
-                label: `Theme ${i+1}`,
-                data: [{
-                    x: Math.random() * 100,
-                    y: Math.random() * 100,
-                    r: (theme.keywords.length * 10) + 10
-                }],
-                backgroundColor: `hsl(${i * 360 / doc.themes.length}, 70%, 60%)`,
-            }))
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const theme = doc.themes[context.datasetIndex];
-                            return `${context.dataset.label}: ${theme.keywords.join(', ')}`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-// Switch Tab
-function switchTab(tabId) {
-    tabBtns.forEach(btn => {
-        if (btn.getAttribute('data-tab') === tabId) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-    });
-    
-    tabPanes.forEach(pane => {
-        if (pane.id === `${tabId}-tab`) {
-            pane.classList.add('active');
-        } else {
-            pane.classList.remove('active');
-        }
-    });
-}
-
-// Switch Visualization Tab
-function switchVizTab(vizId) {
-    vizTabBtns.forEach(btn => {
-        if (btn.getAttribute('data-viz') === vizId) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-    });
-    
-    vizPanes.forEach(pane => {
-        if (pane.id === `${vizId}-viz`) {
-            pane.classList.add('active');
-        } else {
-            pane.classList.remove('active');
-        }
-    });
-}
-
-// Render Document List
-function renderDocumentList() {
-    documentList.innerHTML = '';
-    
-    Object.entries(state.documents).forEach(([id, doc]) => {
-        const li = document.createElement('li');
-        li.textContent = doc.name;
-        li.setAttribute('data-id', id);
-        
-        if (id === state.currentDocument) {
-            li.classList.add('active');
-        }
-        
-        li.addEventListener('click', () => loadDocument(id));
-        documentList.appendChild(li);
-    });
-}
-
-// Show Loading Overlay
-function showLoading(text) {
-    loadingText.textContent = text || 'Loading...';
-    loadingOverlay.style.display = 'flex';
-}
-
-// Hide Loading Overlay
-function hideLoading() {
-    loadingOverlay.style.display = 'none';
 }
 
 // Clear All Data
-function clearAllData() {
-    if (confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
-        state = {
-            documents: {},
-            currentDocument: null,
-            chatHistory: []
-        };
-        
-        saveState();
-        renderDocumentList();
-        
-        welcomeScreen.style.display = 'flex';
-        documentView.style.display = 'none';
+async function clearAllData() {
+    if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+        try {
+            showLoading('Clearing data...');
+            
+            // Clear server-side data (if applicable)
+            // Note: In a real app, you would have an API endpoint to clear data
+            
+            // Clear client-side state
+            state = {
+                documents: {},
+                currentDocument: null,
+                chatHistory: []
+            };
+            
+            saveState();
+            
+            // Reset UI
+            documentList.innerHTML = '';
+            welcomeScreen.style.display = 'flex';
+            documentView.style.display = 'none';
+            
+            // Reset file upload
+            fileUpload.value = '';
+            fileInfo.textContent = 'No file selected';
+            processBtn.disabled = true;
+            
+            // Reload the page to ensure clean state
+            window.location.reload();
+            
+        } catch (error) {
+            console.error('Error clearing data:', error);
+            alert('Failed to clear data. Please try again.');
+        } finally {
+            hideLoading();
+        }
     }
 }
-
-// Save State to localStorage
-function saveState() {
-    localStorage.setItem('docAIState', JSON.stringify(state));
-}
-
-// Initialize the app
-document.addEventListener('DOMContentLoaded', init);

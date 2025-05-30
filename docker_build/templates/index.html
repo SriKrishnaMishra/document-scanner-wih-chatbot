@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Research & Theme Identification Chatbot</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-robot"></i> DocAI</h2>
+                <p>Document Research & Theme Identification</p>
+            </div>
+            
+            <div class="document-management">
+                <h3>Document Management</h3>
+                <div class="upload-section">
+                    <label for="file-upload" class="custom-file-upload">
+                        <i class="fas fa-cloud-upload-alt"></i> Upload Document
+                    </label>
+                    <input id="file-upload" type="file" accept=".pdf,.docx,.txt" />
+                    <div class="file-info" id="file-info">No file selected</div>
+                    <button id="process-btn" class="process-btn" disabled>Process Document</button>
+                </div>
+                
+                <div class="document-list">
+                    <h3>Your Documents</h3>
+                    <ul id="document-list">
+                        <!-- Documents will be added here dynamically -->
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="sidebar-footer">
+                <button id="clear-data-btn" class="clear-data-btn">
+                    <i class="fas fa-trash"></i> Clear All Data
+                </button>
+                <p class="made-with">Made with <i class="fas fa-heart"></i> using AI</p>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="welcome-screen" id="welcome-screen">
+                <div class="welcome-content">
+                    <h1>Welcome to DocAI</h1>
+                    <p>Upload documents and ask questions to analyze them.</p>
+                    <div class="features">
+                        <div class="feature">
+                            <i class="fas fa-search"></i>
+                            <h3>Document Analysis</h3>
+                            <p>Extract key themes and insights from your documents</p>
+                        </div>
+                        <div class="feature">
+                            <i class="fas fa-comments"></i>
+                            <h3>Interactive Chat</h3>
+                            <p>Ask questions about your documents and get AI-powered answers</p>
+                        </div>
+                        <div class="feature">
+                            <i class="fas fa-chart-network"></i>
+                            <h3>Theme Visualization</h3>
+                            <p>Visualize connections between themes in your documents</p>
+                        </div>
+                    </div>
+                    <div class="get-started">
+                        <p>Get started by uploading a document from the sidebar</p>
+                        <i class="fas fa-arrow-left animated-arrow"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="document-view" id="document-view" style="display: none;">
+                <div class="document-header">
+                    <h2 id="document-title">Document Title</h2>
+                </div>
+                
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="chat">Chat</button>
+                    <button class="tab-btn" data-tab="themes">Themes & Analysis</button>
+                    <button class="tab-btn" data-tab="document">Document Text</button>
+                </div>
+                
+                <div class="tab-content">
+                    <!-- Chat Tab -->
+                    <div class="tab-pane active" id="chat-tab">
+                        <div class="chat-container">
+                            <div class="chat-messages" id="chat-messages">
+                                <div class="message system">
+                                    <div class="message-content">
+                                        <p>Hello! I'm your document assistant. Ask me anything about your document.</p>
+                                    </div>
+                                </div>
+                                <!-- Messages will be added here dynamically -->
+                            </div>
+                            <div class="chat-input-container">
+                                <input type="text" id="chat-input" placeholder="Ask a question about your document..." />
+                                <button id="send-btn">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Themes Tab -->
+                    <div class="tab-pane" id="themes-tab">
+                        <div class="themes-container">
+                            <div class="themes-section">
+                                <h3>Document Themes</h3>
+                                <div class="themes-list" id="themes-list">
+                                    <!-- Themes will be added here dynamically -->
+                                </div>
+                            </div>
+                            
+                            <div class="summary-section">
+                                <h3>Document Summary</h3>
+                                <div class="summary-content" id="summary-content">
+                                    <!-- Summary will be added here dynamically -->
+                                </div>
+                            </div>
+                            
+                            <div class="visualizations-section">
+                                <h3>Visualizations</h3>
+                                <div class="visualization-tabs">
+                                    <button class="viz-tab-btn active" data-viz="word-freq">Word Frequency</button>
+                                    <button class="viz-tab-btn" data-viz="theme-network">Theme Network</button>
+                                </div>
+                                <div class="visualization-content">
+                                    <div class="viz-pane active" id="word-freq-viz">
+                                        <div class="chart-container">
+                                            <canvas id="word-freq-chart"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="viz-pane" id="theme-network-viz">
+                                        <div class="chart-container">
+                                            <canvas id="theme-network-chart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Document Tab -->
+                    <div class="tab-pane" id="document-tab">
+                        <div class="document-content-container">
+                            <h3>Document Content</h3>
+                            <div class="document-content" id="document-content">
+                                <!-- Document content will be added here dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stats Sidebar -->
+        <div class="stats-sidebar">
+            <div class="stats-header">
+                <h3>Quick Stats</h3>
+            </div>
+            
+            <div class="stats-content">
+                <div class="stat-item">
+                    <div class="stat-label">Total Words</div>
+                    <div class="stat-value" id="total-words">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Total Sentences</div>
+                    <div class="stat-value" id="total-sentences">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Identified Themes</div>
+                    <div class="stat-value" id="identified-themes">0</div>
+                </div>
+            </div>
+            
+            <div class="sample-questions">
+                <h3>Sample Questions</h3>
+                <div class="question-list">
+                    <button class="question-btn">What are the main topics in this document?</button>
+                    <button class="question-btn">Can you summarize this document?</button>
+                    <button class="question-btn">What is the most important point made?</button>
+                    <button class="question-btn">What evidence supports the main argument?</button>
+                    <button class="question-btn">How does this document compare to industry standards?</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner"></div>
+        <p id="loading-text">Processing document...</p>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="../static/js/main.js"></script>
+</body>
+</html>
